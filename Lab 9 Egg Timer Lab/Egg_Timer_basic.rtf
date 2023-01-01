@@ -1,0 +1,1182 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2636
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fnil\fcharset134 PingFangSC-Regular;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww35640\viewh19080\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 `timescale 1ns / 1ps\
+//////////////////////////////////////////////////////////////////////////////////\
+// Company: \
+// Engineer: \
+// \
+// Create Date: 04/13/2022 11:35:35 AM\
+// Design Name: \
+// Module Name: top\
+// Project Name: \
+// Target Devices: \
+// Tool Versions: \
+// Description: \
+// \
+// Dependencies: \
+// \
+// Revision:\
+// Revision 0.01 - File Created\
+// Additional Comments:\
+// \
+//////////////////////////////////////////////////////////////////////////////////\
+\
+\
+\
+\
+module top(\
+    input                   clk         ,\
+    input                   rst_n       ,\
+    input                   Timer_Enable,\
+    input                   Cook_Time   ,   // key1\
+    input                   Start       ,   // key2\
+    input                   Minute_key3 ,   // key3\
+    input                   Second_key4 ,   // key4\
+    output                  LED0        ,   // Timer enable\
+    output                  LED1        ,\
+    output      [7:0]       Seg_Mux     ,   // Segment\
+    output      [7:0]       Seg_Dri    \
+);\
+\
+\
+reg         [1:0]   state ;\
+parameter   IDEL = 2'd0 ;\
+parameter   SET_TIM = 2'd1 ;\
+parameter   START_Timer = 2'd2 ;\
+parameter   stop = 2'd3 ;\
+\
+\
+wire        RstN ;\
+wire        clk5m ;\
+wire        clk1 ;\
+wire  [5:0] Min_data ;\
+wire  [5:0] Sec_data ;\
+wire  [5:0] Minutes_set ;\
+wire  [5:0] Seconds_set ;\
+\
+reg         Timer_En ;\
+reg         Cook_Time_en ;\
+\
+wire        Min_key3 ;\
+wire        Sec_key4 ;\
+\
+wire        time_down ;\
+reg         r_LED1 ;\
+//------------------------------\
+//          ASSIGN\
+//------------------------------\
+assign  RstN = rst_n && Timer_Enable ;\
+assign  LED0 = RstN ;\
+assign  LED1 = (clk1 && r_LED1) ? 1'b1 :  1'b0 ;\
+\
+ila ila (\
+	.clk(clk), // input wire clk\
+\
+	.probe0(rst_n), // input wire [0:0]  probe0  \
+	.probe1(Timer_Enable), // input wire [0:0]  probe1 \
+	.probe2(Cook_Time), // input wire [0:0]  probe2 \
+	.probe3(Start), // input wire [0:0]  probe3 \
+	.probe4(probe4), // input wire [0:0]  probe4 \
+	.probe5(probe5), // input wire [0:0]  probe5 \
+	.probe6(state), // input wire [7:0]  probe6 \
+	.probe7(probe7), // input wire [7:0]  probe7 \
+	.probe8(Min_data), // input wire [7:0]  probe8 \
+	.probe9(Sec_data) // input wire [7:0]  probe9\
+);\
+\
+always @ (posedge clk or negedge RstN)\
+begin\
+    if(RstN == 1'b0)\
+        begin\
+            Timer_En <= 1'b0 ;\
+            Cook_Time_en <= 1'b0 ;\
+            r_LED1 <= 1'b0 ;\
+            state <= 2'd0 ;\
+        end\
+    else\
+        case(state)\
+            IDEL:\
+                begin\
+                    if(Cook_Time)\
+                        begin\
+                            state <= SET_TIM ;\
+                            Cook_Time_en <= 1'b1 ;\
+                        end\
+                    else\
+                        begin\
+                            state <= IDEL ;\
+                        end\
+                end\
+            \
+            SET_TIM:\
+                begin\
+                    if(Start)\
+                        begin\
+                            Cook_Time_en <= 1'b0 ;\
+                            state <= START_Timer ;\
+                            r_LED1 <= 1'b1 ;\
+                        end\
+                    else\
+                        begin\
+                            state <= SET_TIM ;\
+                        end\
+                end\
+            \
+            START_Timer:\
+                begin\
+                    if(time_down || Cook_Time)\
+                        begin\
+                            state <= IDEL ;\
+                            Cook_Time_en <= 1'b0 ;\
+                            Timer_En <= 1'b0 ;\
+                            r_LED1 <= 1'b0 ;\
+                        end\
+                    else\
+                        begin\
+                            Timer_En <= 1'b1 ;\
+                        end\
+                end\
+            \
+            default:\
+                begin\
+                    Timer_En <= 1'b0 ;\
+                    Cook_Time_en <= 1'b0 ;\
+                end\
+            \
+        endcase\
+end\
+\
+\
+PLL U1_PLL(\
+        .clk                ( clk       ),\
+        .rst_n              ( RstN      ),\
+        .clk5m              ( clk5m     ),\
+        .clk1               ( clk1      )           \
+);\
+\
+\
+Min_Sec_Gen U2_Min_Sec_Gen(\
+        .clk                ( clk5m       ),   // 5MHz\
+        .rst_n              ( RstN        ),\
+        .Cook_Time          ( Cook_Time_en ),\
+        .Timer_En           ( Timer_En  ),\
+        .Min_Set_data       ( Minutes_set  ) ,\
+        .Sec_Set_data       ( Seconds_set  ) ,\
+        .Min_data           ( Min_data  ),\
+        .Sec_data           ( Sec_data  ),\
+        .time_down          (time_down  )\
+);\
+\
+\
+Min_Sec_Set U3_Min_Sec_Set(\
+        .clk                ( clk5m     ),   // 5MHz\
+        .rst_n              ( RstN      ),\
+        .Cook_Time          ( Cook_Time_en ),\
+        .Minute_key         ( Min_key3  ),   // key3\
+        .Second_key         ( Sec_key4  ),   // key4\
+        .Minutes            ( Minutes_set ),\
+        .Seconds            ( Seconds_set )\
+);\
+\
+\
+KEY_FILTER U4_KEY_FILTER(\
+		.Clk                ( clk5m         ),      \
+		.Rst_n              ( RstN          ),    \
+		.key_in             ( ~Minute_key3   ),   \
+		.key_flag           ( Min_key3      ), \
+		.key_state          (  ) \
+		);\
+\
+KEY_FILTER U5_KEY_FILTER(\
+		.Clk                ( clk5m         ),      \
+		.Rst_n              ( RstN          ),    \
+		.key_in             ( ~Second_key4   ),   \
+		.key_flag           ( Sec_key4      ), \
+		.key_state          (  ) \
+		);\
+\
+\
+seg_led U6_seg_led(\
+        .dri_clk            ( clk5m     ),        // \
+        .rst_n              ( RstN      ),        // \
+        .data_m             ( Min_data  ),        // \
+        .data_s             ( Sec_data  ),        // \
+        .en                 ( 1'b1      ),        // \
+        .seg_sel            ( Seg_Mux   ),        // \
+        .seg_led            ( Seg_Dri   )         // \
+    );\
+ \
+endmodule\
+\
+\
+\
+\
+\
+`timescale 1ns / 1ps\
+//////////////////////////////////////////////////////////////////////////////////\
+// Company: \
+// Engineer: \
+// \
+// Create Date: 04/13/2022 11:41:41 AM\
+// Design Name: \
+// Module Name: PLL\
+// Project Name: \
+// Target Devices: \
+// Tool Versions: \
+// Description: \
+// \
+// Dependencies: \
+// \
+// Revision:\
+// Revision 0.01 - File Created\
+// Additional Comments:\
+// \
+//////////////////////////////////////////////////////////////////////////////////\
+\
+\
+`timescale 1ns / 1ps\
+\
+module PLL(\
+    input                   clk         ,\
+    input                   rst_n       ,\
+    output                  clk5m       ,\
+    output                  clk1                   \
+);\
+\
+\
+parameter   clk5m_cnt = 10 ;\
+parameter   clk1_cnt = 50_000_000 ;\
+\
+reg [3:0]   cnt_5m ;\
+reg [27:0]  cnt_1 ;\
+\
+reg         r_clk5m ;\
+reg         r_clk1 ;\
+\
+assign      clk5m = r_clk5m ;\
+assign      clk1  = r_clk1  ;\
+\
+\
+\
+\
+always @ (posedge clk, negedge rst_n)\
+begin\
+    if(rst_n == 1'b0)\
+        begin\
+            r_clk5m <= 1'b0 ;\
+            cnt_5m <= 4'd0 ;\
+        end\
+    else if(cnt_5m == clk5m_cnt - 1)\
+        begin\
+            cnt_5m <= 4'd0 ;\
+            r_clk5m <= ~r_clk5m ;\
+        end\
+    else\
+        begin\
+            r_clk5m <= r_clk5m ;\
+            cnt_5m <= cnt_5m + 1'b1 ;\
+        end\
+end\
+\
+\
+always @ (posedge clk, negedge rst_n)\
+begin\
+    if(rst_n == 1'b0)\
+        begin\
+            r_clk1 <= 1'b0 ;\
+            cnt_1 <= 28'd0 ;\
+        end\
+    else if(cnt_1 == clk1_cnt - 1)\
+        begin\
+            cnt_1 <= 28'd0 ;\
+            r_clk1 <= ~r_clk1 ;\
+        end\
+    else\
+        begin\
+            cnt_1 <= cnt_1 + 1'b1 ;\
+            r_clk1 <= r_clk1 ;\
+        end\
+end\
+\
+ \
+endmodule\
+\
+\
+\
+\
+\
+\
+`timescale 1ns / 1ps\
+//////////////////////////////////////////////////////////////////////////////////\
+// Company: \
+// Engineer: \
+// \
+// Create Date: 04/13/2022 11:36:50 AM\
+// Design Name: \
+// Module Name: Min_Sec_Gen\
+// Project Name: \
+// Target Devices: \
+// Tool Versions: \
+// Description: \
+// \
+// Dependencies: \
+// \
+// Revision:\
+// Revision 0.01 - File Created\
+// Additional Comments:\
+// \
+//////////////////////////////////////////////////////////////////////////////////\
+\
+\
+`timescale 1ns / 1ps\
+\
+module Min_Sec_Gen(\
+    input                   clk         ,   // 5MHz\
+    input                   rst_n       ,\
+    input                   Cook_Time   ,\
+    input                   Timer_En    ,\
+    input    [5:0]          Min_Set_data,\
+    input    [5:0]          Sec_Set_data,  \
+    output   [5:0]          Min_data    ,\
+    output   [5:0]          Sec_data    ,\
+    output                  time_down  \
+);\
+\
+\
+parameter   T_1s = 5_000_000 ;\
+\
+reg         [5:0]       r_Min_data ;\
+reg         [5:0]       r_Sec_data ;\
+\
+reg         [23:0]      r_Sec_Cnt ;\
+reg                     r_Sec_flag ;\
+\
+assign      Min_data = r_Min_data ;\
+assign      Sec_data = r_Sec_data ;\
+assign      time_down = (r_Min_data == 6'd0 && r_Sec_data == 6'd0 && Timer_En == 1'b1 ) ? 1 : 0 ;\
+\
+\
+\
+always @ (posedge clk or negedge rst_n)\
+begin\
+    if(rst_n == 1'b0)\
+        begin\
+            r_Sec_data <= 6'd0 ;\
+            r_Sec_flag <= 1'b0 ;\
+            r_Sec_Cnt <= 24'd0 ;\
+        end\
+    else if(Cook_Time)\
+        begin\
+            r_Sec_data <= Sec_Set_data ;\
+            r_Sec_flag <= 1'b0 ;\
+            r_Sec_Cnt <= 24'd0 ;\
+        end\
+    else if(Timer_En)\
+        begin\
+            if(r_Sec_Cnt == T_1s)\
+                begin\
+                    r_Sec_Cnt <= 24'd0 ;\
+                    if(r_Sec_data == 6'd0)  // \
+                        begin\
+                            if(r_Min_data == 6'd0)\
+                                begin\
+                                    r_Sec_flag <= 1'b1 ;\
+                                    r_Sec_data <= 6'd0 ;\
+                                end\
+                            else\
+                                begin\
+                                    r_Sec_flag <= 1'b1 ;\
+                                    r_Sec_data <= 6'd59 ;\
+                                end\
+                        end\
+                    else\
+                        begin\
+                            r_Sec_data <= r_Sec_data - 1'b1 ;\
+                            r_Sec_flag <= 1'b0 ;\
+                        end\
+                end\
+            else\
+                begin\
+                    r_Sec_Cnt <= r_Sec_Cnt + 1'b1 ;\
+                    r_Sec_flag <= 1'b0 ;\
+                end\
+        end\
+end\
+\
+\
+always @ (posedge clk or negedge rst_n)\
+begin\
+    if(rst_n == 1'b0)\
+        begin\
+            r_Min_data <= 6'd0 ;\
+        end\
+    else if(Cook_Time)\
+        begin\
+            r_Min_data <= Min_Set_data ;\
+        end\
+    else if(Timer_En)\
+        begin\
+            if(r_Sec_flag)\
+                begin\
+                    if(r_Min_data == 6'd0)\
+                        begin\
+                            r_Min_data <= 6'd0 ;\
+                        end\
+                    else    \
+                        begin\
+                            r_Min_data <= r_Min_data - 1'b1 ;\
+                        end\
+                end\
+            else\
+                begin\
+                    r_Min_data <= r_Min_data ;\
+                end  \
+        end\
+end\
+\
+ \
+endmodule\
+\
+\
+\
+\
+\
+\
+`timescale 1ns / 1ps\
+//////////////////////////////////////////////////////////////////////////////////\
+// Company: \
+// Engineer: \
+// \
+// Create Date: 04/13/2022 11:40:28 AM\
+// Design Name: \
+// Module Name: Min_Sec_Set\
+// Project Name: \
+// Target Devices: \
+// Tool Versions: \
+// Description: \
+// \
+// Dependencies: \
+// \
+// Revision:\
+// Revision 0.01 - File Created\
+// Additional Comments:\
+// \
+//////////////////////////////////////////////////////////////////////////////////\
+\
+\
+`timescale 1ns / 1ps\
+\
+module Min_Sec_Set(\
+    input                   clk         ,   // 5MHz\
+    input                   rst_n       ,\
+    input                   Cook_Time   ,\
+    input                   Minute_key  ,   // key3\
+    input                   Second_key  ,   // key4\
+    output   reg [5:0]      Minutes     ,\
+    output   reg [5:0]      Seconds   \
+);\
+\
+\
+\
+always @ (posedge clk or negedge rst_n)\
+begin\
+    if(rst_n == 1'b0)\
+        begin\
+            Minutes <= 6'd0 ;\
+        end\
+    else if(Cook_Time)\
+        begin\
+            if(Minute_key)\
+                begin\
+                    if(Minutes == 59)\
+                        begin\
+                            Minutes <= 6'd0 ;\
+                        end\
+                    else    \
+                        begin\
+                            Minutes <= Minutes + 1'b1 ;\
+                        end\
+                end\
+            else\
+                begin\
+                    Minutes <= Minutes ;\
+                end\
+        end\
+    else\
+        begin\
+            Minutes <= Minutes ;\
+        end\
+end\
+\
+\
+always @ (posedge clk or negedge rst_n)\
+begin\
+    if(rst_n == 1'b0)\
+        begin\
+            Seconds <= 6'd0 ;\
+        end\
+    else if(Cook_Time)\
+        begin\
+            if(Second_key)\
+                begin\
+                    if(Seconds == 59)\
+                        begin\
+                            Seconds <= 6'd0 ;\
+                        end\
+                    else    \
+                        begin\
+                            Seconds <= Seconds + 1'b1 ;\
+                        end\
+                end\
+            else\
+                begin\
+                    Seconds <= Seconds ;\
+                end\
+        end\
+    else\
+        begin\
+            Seconds <= Seconds ;\
+        end\
+end\
+\
+ \
+endmodule\
+\
+\
+\
+\
+\
+\
+\
+`timescale 1ns / 1ps\
+//////////////////////////////////////////////////////////////////////////////////\
+// Company: \
+// Engineer: \
+// \
+// Create Date: 04/13/2022 11:39:01 AM\
+// Design Name: \
+// Module Name: KEY_FILTER\
+// Project Name: \
+// Target Devices: \
+// Tool Versions: \
+// Description: \
+// \
+// Dependencies: \
+// \
+// Revision:\
+// Revision 0.01 - File Created\
+// Additional Comments:\
+// \
+//////////////////////////////////////////////////////////////////////////////////\
+\
+\
+`timescale 1ns / 1ps\
+\
+module KEY_FILTER(\
+			Clk,      //5M????\
+			Rst_n,    //????\
+			key_in,   //????\
+			key_flag, //??????\
+			key_state //??????\
+		);\
+	input Clk;\
+	input Rst_n;\
+	input key_in;\
+	\
+	output reg key_flag;\
+	output reg key_state;\
+	\
+	localparam\
+		IDEL		= 4'b0001,\
+		FILTER0	    = 4'b0010,\
+		DOWN		= 4'b0100,\
+		FILTER1 	= 4'b1000;\
+		\
+	reg [3:0]state;\
+	reg [19:0]cnt;\
+	reg en_cnt;	\
+	\
+\
+	reg key_in_sa,key_in_sb;\
+	always@(posedge Clk or negedge Rst_n)\
+	if(!Rst_n)begin\
+		key_in_sa <= 1'b0;\
+		key_in_sb <= 1'b0;\
+	end\
+	else begin\
+		key_in_sa <= key_in;\
+		key_in_sb <= key_in_sa;	\
+	end\
+	\
+	reg key_tmpa,key_tmpb;\
+	wire pedge,nedge;\
+	reg cnt_full;//???????\
+	\
+\
+	always@(posedge Clk or negedge Rst_n)\
+	if(!Rst_n)begin\
+		key_tmpa <= 1'b0;\
+		key_tmpb <= 1'b0;\
+	end\
+	else begin\
+		key_tmpa <= key_in_sb;\
+		key_tmpb <= key_tmpa;	\
+	end\
+\
+\
+	assign nedge = !key_tmpa & key_tmpb;\
+	assign pedge = key_tmpa & (!key_tmpb);\
+	\
+	always@(posedge Clk or negedge Rst_n)\
+	if(!Rst_n)begin\
+		en_cnt <= 1'b0;\
+		state <= IDEL;\
+		key_flag <= 1'b0;\
+		key_state <= 1'b1;\
+	end\
+	else begin\
+		case(state)\
+			IDEL :\
+				begin\
+					key_flag <= 1'b0;\
+					if(nedge)begin\
+						state <= FILTER0;\
+						en_cnt <= 1'b1;\
+					end\
+					else\
+						state <= IDEL;\
+				end\
+					\
+			FILTER0:\
+				if(cnt_full)begin\
+					key_flag <= 1'b1;\
+					key_state <= 1'b0;\
+					en_cnt <= 1'b0;\
+					state <= DOWN;\
+				end\
+				else if(pedge)begin\
+					state <= IDEL;\
+					en_cnt <= 1'b0;\
+				end\
+				else\
+					state <= FILTER0;\
+					\
+			DOWN:\
+				begin\
+					key_flag <= 1'b0;\
+					if(pedge)begin\
+						state <= FILTER1;\
+						en_cnt <= 1'b1;\
+					end\
+					else\
+						state <= DOWN;\
+				end\
+			\
+			FILTER1:\
+				if(cnt_full)begin\
+					key_flag <= 1'b0;\
+					key_state <= 1'b1;\
+					state <= IDEL;\
+				end\
+				else if(nedge)begin\
+					en_cnt <= 1'b0;\
+					state <= DOWN;\
+				end\
+				else\
+					state <= FILTER1;\
+			\
+			default:\
+				begin \
+					state <= IDEL; \
+					en_cnt <= 1'b0;		\
+					key_flag <= 1'b0;\
+					key_state <= 1'b1;\
+				end\
+				\
+		endcase	\
+	end\
+	\
+\
+	\
+	always@(posedge Clk or negedge Rst_n)\
+	if(!Rst_n)\
+		cnt <= 20'd0;\
+	else if(en_cnt)\
+		cnt <= cnt + 1'b1;\
+	else\
+		cnt <= 20'd0;\
+	\
+	always@(posedge Clk or negedge Rst_n)\
+	if(!Rst_n)\
+		cnt_full <= 1'b0;\
+	else if(cnt == 99_999)\
+		cnt_full <= 1'b1;\
+	else\
+		cnt_full <= 1'b0;	\
+\
+endmodule\
+\
+\
+\
+\
+\
+\
+`timescale 1ns / 1ps\
+//////////////////////////////////////////////////////////////////////////////////\
+// Company: \
+// Engineer: \
+// \
+// Create Date: 04/13/2022 11:39:01 AM\
+// Design Name: \
+// Module Name: KEY_FILTER\
+// Project Name: \
+// Target Devices: \
+// Tool Versions: \
+// Description: \
+// \
+// Dependencies: \
+// \
+// Revision:\
+// Revision 0.01 - File Created\
+// Additional Comments:\
+// \
+//////////////////////////////////////////////////////////////////////////////////\
+\
+\
+`timescale 1ns / 1ps\
+\
+module KEY_FILTER(\
+			Clk,     \
+			Rst_n,   \
+			key_in,   \
+			key_flag, \
+			key_state \
+		);\
+	input Clk;\
+	input Rst_n;\
+	input key_in;\
+	\
+	output reg key_flag;\
+	output reg key_state;\
+	\
+	localparam\
+		IDEL		= 4'b0001,\
+		FILTER0	    = 4'b0010,\
+		DOWN		= 4'b0100,\
+		FILTER1 	= 4'b1000;\
+		\
+	reg [3:0]state;\
+	reg [19:0]cnt;\
+	reg en_cnt;	\
+	\
+\
+	reg key_in_sa,key_in_sb;\
+	always@(posedge Clk or negedge Rst_n)\
+	if(!Rst_n)begin\
+		key_in_sa <= 1'b0;\
+		key_in_sb <= 1'b0;\
+	end\
+	else begin\
+		key_in_sa <= key_in;\
+		key_in_sb <= key_in_sa;	\
+	end\
+	\
+	reg key_tmpa,key_tmpb;\
+	wire pedge,nedge;\
+	reg cnt_full;//???????\
+	\
+\
+	always@(posedge Clk or negedge Rst_n)\
+	if(!Rst_n)begin\
+		key_tmpa <= 1'b0;\
+		key_tmpb <= 1'b0;\
+	end\
+	else begin\
+		key_tmpa <= key_in_sb;\
+		key_tmpb <= key_tmpa;	\
+	end\
+\
+\
+	assign nedge = !key_tmpa & key_tmpb;\
+	assign pedge = key_tmpa & (!key_tmpb);\
+	\
+	always@(posedge Clk or negedge Rst_n)\
+	if(!Rst_n)begin\
+		en_cnt <= 1'b0;\
+		state <= IDEL;\
+		key_flag <= 1'b0;\
+		key_state <= 1'b1;\
+	end\
+	else begin\
+		case(state)\
+			IDEL :\
+				begin\
+					key_flag <= 1'b0;\
+					if(nedge)begin\
+						state <= FILTER0;\
+						en_cnt <= 1'b1;\
+					end\
+					else\
+						state <= IDEL;\
+				end\
+					\
+			FILTER0:\
+				if(cnt_full)begin\
+					key_flag <= 1'b1;\
+					key_state <= 1'b0;\
+					en_cnt <= 1'b0;\
+					state <= DOWN;\
+				end\
+				else if(pedge)begin\
+					state <= IDEL;\
+					en_cnt <= 1'b0;\
+				end\
+				else\
+					state <= FILTER0;\
+					\
+			DOWN:\
+				begin\
+					key_flag <= 1'b0;\
+					if(pedge)begin\
+						state <= FILTER1;\
+						en_cnt <= 1'b1;\
+					end\
+					else\
+						state <= DOWN;\
+				end\
+			\
+			FILTER1:\
+				if(cnt_full)begin\
+					key_flag <= 1'b0;\
+					key_state <= 1'b1;\
+					state <= IDEL;\
+				end\
+				else if(nedge)begin\
+					en_cnt <= 1'b0;\
+					state <= DOWN;\
+				end\
+				else\
+					state <= FILTER1;\
+			\
+			default:\
+				begin \
+					state <= IDEL; \
+					en_cnt <= 1'b0;		\
+					key_flag <= 1'b0;\
+					key_state <= 1'b1;\
+				end\
+				\
+		endcase	\
+	end\
+	\
+\
+	\
+	always@(posedge Clk or negedge Rst_n)\
+	if(!Rst_n)\
+		cnt <= 20'd0;\
+	else if(en_cnt)\
+		cnt <= cnt + 1'b1;\
+	else\
+		cnt <= 20'd0;\
+	\
+	always@(posedge Clk or negedge Rst_n)\
+	if(!Rst_n)\
+		cnt_full <= 1'b0;\
+	else if(cnt == 99_999)\
+		cnt_full <= 1'b1;\
+	else\
+		cnt_full <= 1'b0;	\
+\
+endmodule\
+\
+\
+\
+\
+\
+\
+`timescale 1ns / 1ps\
+//////////////////////////////////////////////////////////////////////////////////\
+// Company: \
+// Engineer: \
+// \
+// Create Date: 04/13/2022 11:42:11 AM\
+// Design Name: \
+// Module Name: seg_led\
+// Project Name: \
+// Target Devices: \
+// Tool Versions: \
+// Description: \
+// \
+// Dependencies: \
+// \
+// Revision:\
+// Revision 0.01 - File Created\
+// Additional Comments:\
+// \
+//////////////////////////////////////////////////////////////////////////////////\
+\
+\
+module seg_led(\
+    input                   dri_clk,       \
+    input                   rst_n  ,       \
+\
+    input         [5:0]     data_m ,       \
+    input         [5:0]     data_s ,       \
+\
+    input                   en     ,        \
+\
+    output   reg  [7:0]     seg_sel,       \
+    output   reg  [7:0]     seg_led         \
+    );\
+\
+//parameter define\
+localparam  CLK_DIVIDE = 4'd10     ;       \
+localparam  MAX_NUM    = 13'd5000  ;      \
+\
+//reg define\
+reg    [23:0]             num      ;       \
+reg    [12:0]             cnt0     ;        \
+reg                       flag     ;        \
+reg    [2:0]              cnt_sel  ;        \
+reg    [3:0]              num_disp ;       \
+reg                       dot_disp ;       \
+\
+//wire define\
+wire   [3:0]              data0    ;        // ???\
+wire   [3:0]              data1    ;        // ???\
+wire   [3:0]              data2    ;        // ???\
+wire   [3:0]              data3    ;        // ???\
+\
+//*****************************************************\
+//**                    main code\
+//*****************************************************\
+\
+//??????????????????\
+assign  data0 = data_m % 4'd10;              \
+assign  data1 = data_m / 4'd10 % 4'd10   ;    \
+\
+assign  data2 = data_s % 4'd10;              \
+assign  data3 = data_s / 4'd10 % 4'd10   ;   \
+\
+\
+\
+always @ (posedge dri_clk or negedge rst_n) begin\
+    if (rst_n == 1'b0) begin\
+        cnt0 <= 13'b0;\
+        flag <= 1'b0;\
+     end\
+    else if (cnt0 < MAX_NUM - 1'b1) begin\
+        cnt0 <= cnt0 + 1'b1;\
+        flag <= 1'b0;\
+     end\
+    else begin\
+        cnt0 <= 13'b0;\
+        flag <= 1'b1;\
+     end\
+end\
+\
+\
+always @ (posedge dri_clk or negedge rst_n) begin\
+    if (rst_n == 1'b0)\
+        cnt_sel <= 3'b0;\
+    else if(flag) begin\
+        if(cnt_sel < 3'd3)\
+            cnt_sel <= cnt_sel + 1'b1;\
+        else\
+            cnt_sel <= 3'b0;\
+    end\
+    else\
+        cnt_sel <= cnt_sel;\
+end\
+\
+\
+always @ (posedge dri_clk or negedge rst_n) begin\
+    if(!rst_n) begin\
+        seg_sel  <= 8'b11111111;            \
+        num_disp <= 4'b0;           \
+        dot_disp <= 1'b1;                  \
+    end\
+    else begin\
+        if(en) begin\
+            case (cnt_sel)\
+                3'd0 :begin\
+                    seg_sel  <= 8'b11111110;\
+                    num_disp <= data2 ;     \
+                    dot_disp <= 1'b1;       \
+                end\
+                3'd1 :begin\
+                    seg_sel  <= 8'b11111101;\
+                    num_disp <= data3 ;\
+                    dot_disp <= 1'b1;\
+                end\
+                3'd2 :begin\
+                    seg_sel  <= 8'b11111011;\
+                    num_disp <= data0;\
+                    dot_disp <= 1'b0;\
+                end\
+                3'd3 :begin\
+                    seg_sel  <= 8'b11110111; \
+                    num_disp <= data1;\
+                    dot_disp <= 1'b1;\
+                end\
+                default :begin\
+                    seg_sel  <= 8'b11111111; \
+                    num_disp <= 4'b0;\
+                    dot_disp <= 1'b1;\
+                end\
+            endcase\
+        end\
+        else begin\
+            seg_sel  <= 8'b11111111;         \
+            num_disp <= 4'b0;\
+            dot_disp <= 1'b1;\
+        end\
+    end\
+end\
+\
+\
+always @ (posedge dri_clk or negedge rst_n) begin\
+    if (!rst_n)\
+        seg_led <= 8'b11111111;\
+    else begin\
+        case (num_disp)\
+            4'd0 : seg_led <= \{dot_disp,7'b1000000\}; //???? 0\
+            4'd1 : seg_led <= \{dot_disp,7'b1111001\}; //???? 1\
+            4'd2 : seg_led <= \{dot_disp,7'b0100100\}; //???? 2\
+            4'd3 : seg_led <= \{dot_disp,7'b0110000\}; //???? 3\
+            4'd4 : seg_led <= \{dot_disp,7'b0011001\}; //???? 4\
+            4'd5 : seg_led <= \{dot_disp,7'b0010010\}; //???? 5\
+            4'd6 : seg_led <= \{dot_disp,7'b0000010\}; //???? 6\
+            4'd7 : seg_led <= \{dot_disp,7'b1111000\}; //???? 7\
+            4'd8 : seg_led <= \{dot_disp,7'b0000000\}; //???? 8\
+            4'd9 : seg_led <= \{dot_disp,7'b0010000\}; //???? 9\
+            4'd10: seg_led <= 8'b11111111;           //???????\
+            4'd11: seg_led <= 8'b10111111;           //????(-)\
+            default: \
+                   seg_led <= \{dot_disp,7'b1000000\};\
+        endcase\
+    end\
+end\
+\
+endmodule \
+\
+\
+\
+\
+`timescale 1ns / 1ps\
+\
+\
+module tb_Egg(  );\
+\
+    reg         clk         ;\
+    reg         rst_n       ;\
+    reg         Timer_Enable;\
+    reg         Cook_Time   ;\
+    reg         Start       ;\
+    reg         Minute_key3 ;\
+    reg         Second_key4 ;\
+    wire        LED0        ;\
+    wire        LED1        ;\
+    wire  [7:0]      Seg_Mux     ;\
+    wire  [7:0]      Seg_Dri     ;\
+\
+\
+parameter ClockPerilod = 10 ;\
+\
+always #(ClockPerilod / 2) clk = ~clk ;\
+\
+initial begin\
+    clk = 1'b1 ;\
+    rst_n = 1'b0 ;\
+    Timer_Enable = 1'b0 ;\
+    Cook_Time = 1'b1 ;  \
+    Start = 1'b1 ; \
+    Minute_key3 = 1'b1 ; \
+    Second_key4 = 1'b1 ;\
+    # ClockPerilod\
+    rst_n = 1'b1 ;\
+    #10\
+    Timer_Enable = 1'b1 ;\
+    #100\
+    Cook_Time = 1'b0 ; // 
+\f1 \'b0\'b4\'cf\'c2
+\f0 cook time,
+\f1 \'c9\'e8\'d6\'c3\'ca\'b1\'bc\'e4
+\f0 \
+    #4000_000\
+    Cook_Time = 1'b1 ; \
+    #4000_000\
+    Minute_key3 = 1'b0 ; // 
+\f1 \'b0\'b4\'cf\'c2
+\f0 key3
+\f1 \'a3\'ac\'b7\'d6\'d6\'d3\'d7\'d4\'bc\'d3
+\f0 \
+    #4000_000\
+    Minute_key3 = 1'b1 ;\
+    #4000_000\
+    Minute_key3 = 1'b0 ; // 
+\f1 \'b0\'b4\'cf\'c2
+\f0 key3
+\f1 \'a3\'ac\'b7\'d6\'d6\'d3\'d7\'d4\'bc\'d3
+\f0 \
+    #4000_000\
+    Minute_key3 = 1'b1 ;\
+    #4000_000\
+    Minute_key3 = 1'b0 ; // 
+\f1 \'b0\'b4\'cf\'c2
+\f0 key3
+\f1 \'a3\'ac\'b7\'d6\'d6\'d3\'d7\'d4\'bc\'d3
+\f0 \
+    #4000_000\
+    Minute_key3 = 1'b1 ;\
+    #4000_000\
+    Second_key4 = 1'b0 ;\
+    #4000_000\
+    Second_key4 = 1'b1 ; // 
+\f1 \'b0\'b4\'cf\'c2
+\f0 key4
+\f1 \'a3\'ac\'b7\'d6\'d6\'d3\'d7\'d4\'bc\'d3
+\f0 \
+    #4000_000\
+    Second_key4 = 1'b0 ;\
+    #4000_000\
+    Second_key4 = 1'b1 ; // 
+\f1 \'b0\'b4\'cf\'c2
+\f0 key4
+\f1 \'a3\'ac\'b7\'d6\'d6\'d3\'d7\'d4\'bc\'d3
+\f0 \
+    #4000_000\
+    Second_key4 = 1'b0 ;\
+    #4000_000\
+    Second_key4 = 1'b1 ;\
+    #4000_000\
+    Start = 1'b0 ;\
+    #20\
+    Start = 1'b1 ;\
+end\
+\
+\
+\
+Egg_Timer Egg_Timer(\
+    .clk                 ( clk          ) ,\
+    .rst_n               ( rst_n        ) ,\
+    .Timer_Enable        ( Timer_Enable ) ,\
+    .Cook_Time           ( Cook_Time    ) ,   // key1\
+    .Start               ( Start        ) ,   // key2\
+    .Minute_key3         ( Minute_key3  ) ,   // key3\
+    .Second_key4         ( Second_key4  ) ,   // key4\
+    .LED0                ( LED0         ) ,   // Timer enable\
+    .LED1                ( LED1         ) ,\
+    .Seg_Mux             ( Seg_Mux      ) ,   // Segment\
+    .Seg_Dri             ( Seg_Dri      ) \
+);\
+\
+\
+endmodule\
+\
+}
